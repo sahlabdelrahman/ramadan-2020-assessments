@@ -1,5 +1,27 @@
 document.addEventListener("DOMContentLoaded", () => {
+    const serverUrl = "http://localhost:7777";
+
+    const updateVote = async ({ id, vote_type }) => {
+        let score;
+        await fetch(`${serverUrl}/video-request/vote`, {
+            method: "PUT",
+            headers: {
+                "content-type": "application/json",
+            },
+            body: JSON.stringify({
+                id,
+                vote_type,
+            }),
+        })
+            .then((blob) => blob.json())
+            .then((votes) => {
+                score = +votes?.ups - +votes?.downs;
+            });
+
+        return score;
+    };
     const getSingleVideoRequest = ({
+        _id,
         topic_title,
         topic_details,
         author_name,
@@ -7,6 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
         target_level,
         status,
         submit_date,
+        votes,
     }) => {
         const videoContainerEl = document.createElement("div");
         videoContainerEl.classList.add("card", "mb-3");
@@ -17,14 +40,19 @@ document.addEventListener("DOMContentLoaded", () => {
                             <div class="d-flex flex-column">
                                 <h3>${topic_title}</h3>
                                 <p class="text-muted mb-2">${topic_details}</p>
-                                <p class="mb-0 text-muted">
-                                    <strong>${expected_result}:</strong> ${topic_details}
-                                </p>
+                                ${
+                                    expected_result &&
+                                    `<p class="mb-0 text-muted">
+                                    <strong>Expected results:</strong> ${expected_result}
+                                </p>`
+                                }
                             </div>
                             <div class="d-flex flex-column text-center">
-                                <a class="btn btn-link">🔺</a>
-                                <h3>0</h3>
-                                <a class="btn btn-link">🔻</a>
+                                <a class="btn btn-link" id="vote_ups_${_id}">🔺</a>
+                                <h3 id="vote_scores_${_id}">${
+            votes?.ups - votes?.downs
+        }</h3>
+                                <a class="btn btn-link" id="vote_downs_${_id}">🔻</a>
                             </div>
                         </div>
                         <div
@@ -51,26 +79,59 @@ document.addEventListener("DOMContentLoaded", () => {
     const formVideoRequestEl = document.getElementById("formVideoRequest");
     const listOfRequestsEl = document.getElementById("listOfRequests");
 
-    fetch("http://localhost:7777/video-request")
-        .then((blob) => blob.json())
-        .then((data) => {
-            data.forEach((videoInfo) => {
-                listOfRequestsEl.appendChild(getSingleVideoRequest(videoInfo));
+    const getVideoRequests = () => {
+        fetch(`${serverUrl}/video-request`)
+            .then((blob) => blob.json())
+            .then((data) => {
+                data.forEach((videoInfo) => {
+                    listOfRequestsEl.appendChild(
+                        getSingleVideoRequest(videoInfo)
+                    );
+
+                    const id = videoInfo?._id;
+
+                    const voteUpsEl = document.getElementById(`vote_ups_${id}`);
+                    const voteDownsEl = document.getElementById(
+                        `vote_downs_${id}`
+                    );
+                    const voteScoresEl = document.getElementById(
+                        `vote_scores_${id}`
+                    );
+
+                    voteUpsEl.addEventListener("click", async () => {
+                        updateVote({
+                            id,
+                            vote_type: "ups",
+                        }).then((score) => {
+                            voteScoresEl.innerHTML = score;
+                        });
+                    });
+                    voteDownsEl.addEventListener("click", async () => {
+                        updateVote({
+                            id,
+                            vote_type: "downs",
+                        }).then((score) => {
+                            voteScoresEl.innerHTML = score;
+                        });
+                    });
+                });
             });
-        });
+    };
+
+    getVideoRequests();
 
     formVideoRequestEl.addEventListener("submit", (e) => {
         e.preventDefault();
 
         const fromData = new FormData(formVideoRequestEl);
 
-        fetch("http://localhost:7777/video-request", {
+        fetch(`${serverUrl}/video-request`, {
             method: "POST",
             body: fromData,
         })
             .then((blob) => blob.json())
             .then((data) => {
-                console.log("data: " + data);
+                listOfRequestsEl.prepend(getSingleVideoRequest(data));
             });
     });
 });
